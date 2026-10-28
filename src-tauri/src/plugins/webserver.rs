@@ -14,6 +14,22 @@ fn mime(extension: &str) -> String {
 	}
 }
 
+/// Property inspectors are designed for the dark Stream Deck application. Without a dark colour scheme, WebKitGTK
+/// draws native controls such as select inputs light, behind the property inspector's light text.
+/// The style is inserted after any doctype, so as not to switch the page to quirks mode, and before the property
+/// inspector's own styles, so that they still take precedence.
+fn with_dark_colour_scheme(mut content: String) -> String {
+	const STYLE: &str = "<style>:root { color-scheme: dark; }</style>";
+	let start = content.len() - content.trim_start_matches(['\u{feff}', ' ', '\t', '\r', '\n']).len();
+	let rest = &content[start..];
+	let at = match rest.get(..9) {
+		Some(prefix) if prefix.eq_ignore_ascii_case("<!doctype") => rest.find('>').map_or(start, |end| start + end + 1),
+		_ => start,
+	};
+	content.insert_str(at, STYLE);
+	content
+}
+
 /// Start a simple webserver to serve files of plugins that run in a browser environment.
 pub async fn init_webserver(prefix: PathBuf) {
 	let prefix = prefix.canonicalize().unwrap();
@@ -70,7 +86,7 @@ pub async fn init_webserver(prefix: PathBuf) {
 		if url.ends_with("|opendeck_property_inspector") {
 			let path = &url[..url.len() - 28];
 
-			let mut content = tokio::fs::read_to_string(path).await.unwrap_or_default();
+			let mut content = with_dark_colour_scheme(tokio::fs::read_to_string(path).await.unwrap_or_default());
 			content += r#"
 				<div id="opendeck_iframe_container" style="position: absolute; z-index: 100; top: 0; left: 0; width: 100%; height: 100%; display: none;"></div>
 				<script>
@@ -147,7 +163,7 @@ pub async fn init_webserver(prefix: PathBuf) {
 			let path = &url[..url.len() - 34];
 
 			let mut content = tokio::fs::read_to_string(path).await.unwrap_or_default();
-			content = format!("<script>window.opener ??= window.parent;</script>{content}");
+			content = with_dark_colour_scheme(format!("<script>window.opener ??= window.parent;</script>{content}"));
 
 			let mut response = Response::from_string(content);
 			response.add_header(access_control_allow_origin);
