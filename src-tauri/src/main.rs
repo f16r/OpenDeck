@@ -107,6 +107,9 @@ async fn main() {
 			frontend::settings::get_build_info,
 			frontend::settings::backup_config_directory,
 			frontend::settings::restore_config_directory,
+			frontend::icon_packs::list_icon_packs,
+			frontend::icon_packs::install_icon_pack,
+			frontend::icon_packs::remove_icon_pack,
 		])
 		.setup(|app| {
 			APP_HANDLE.set(app.handle().clone()).unwrap();

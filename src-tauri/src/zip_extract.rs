@@ -34,12 +34,17 @@ impl std::fmt::Display for ZipExtractError {
 impl std::error::Error for ZipExtractError {}
 
 pub fn dir_name<S: Read + Seek>(source: S) -> Result<String, ZipExtractError> {
+	dir_name_with_suffix(source, ".sdplugin")
+}
+
+/// The name of the first directory in the archive whose name ends with `suffix` (lowercase), e.g. ".sdiconpack".
+pub fn dir_name_with_suffix<S: Read + Seek>(source: S, suffix: &str) -> Result<String, ZipExtractError> {
 	let mut archive = zip::ZipArchive::new(source)?;
 
 	if archive.len() == 1 {
 		let file = archive.by_index(0)?;
 		if file.is_file() {
-			return dir_name(Cursor::new(BufReader::new(file).bytes().flatten().collect::<Vec<u8>>()));
+			return dir_name_with_suffix(Cursor::new(BufReader::new(file).bytes().flatten().collect::<Vec<u8>>()), suffix);
 		}
 	}
 
@@ -47,7 +52,7 @@ pub fn dir_name<S: Read + Seek>(source: S) -> Result<String, ZipExtractError> {
 		let file = archive.by_index(i)?;
 		if let Some(c) = PathBuf::from(file.name().replace('\\', "/"))
 			.components()
-			.find(|c| c.as_os_str().to_string_lossy().to_lowercase().ends_with(".sdplugin"))
+			.find(|c| c.as_os_str().to_string_lossy().to_lowercase().ends_with(suffix))
 		{
 			return Ok(c.as_os_str().to_string_lossy().to_string());
 		}

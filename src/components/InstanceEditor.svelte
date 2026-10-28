@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { ActionInstance } from "$lib/ActionInstance";
 
+	import IconPackPicker from "./IconPackPicker.svelte";
+
 	import { t } from "$lib/i18n";
 	import { renderImage, resizeImage } from "$lib/rendererHelper";
 
@@ -20,6 +22,7 @@
 	});
 
 	let fileInput: HTMLInputElement;
+	let showIconPacks = false;
 	let solidColourInput: HTMLInputElement;
 	let backgroundColourInput: HTMLInputElement;
 
@@ -180,6 +183,12 @@
 					}}
 				/>
 			</button>
+			<button
+				on:click={() => (showIconPacks = true)}
+				class="mt-1 px-0.5 text-sm text-neutral-300 bg-neutral-600 hover:bg-neutral-500 transition-colors border border-neutral-500 rounded-lg"
+			>
+				{$t("instance_editor.icon_pack")}
+			</button>
 		</div>
 		<input
 			bind:this={fileInput}
@@ -301,3 +310,7 @@
 		</div>
 	</div>
 </div>
+
+{#if showIconPacks}
+	<IconPackPicker onPick={(image) => (instance.states[state].image_override = image)} onClose={() => (showIconPacks = false)} />
+{/if}
