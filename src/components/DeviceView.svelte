@@ -38,6 +38,12 @@
 		if (dataTransfer?.getData("action")) {
 			let action = JSON.parse(dataTransfer?.getData("action"));
 			if (array[position]) {
+				// Dropped onto a folder, an action becomes the one its key shows.
+				if (array[position]?.action.uuid == "opendeck.folder") {
+					const response = await invoke<ActionInstance | null>("create_instance", { context, action });
+					if (response) array[position] = response;
+					profile = profile;
+				}
 				return;
 			}
 			array[position] = await invoke("create_instance", { context, action });

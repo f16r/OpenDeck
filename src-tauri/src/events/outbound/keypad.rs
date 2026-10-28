@@ -35,7 +35,14 @@ pub async fn key_down(device: &str, key: u8) -> Result<(), anyhow::Error> {
 	KEY_DOWN_TARGETS.insert((device.to_owned(), key), context.clone());
 
 	let Some(instance) = get_slot_mut(&context, &mut locks).await? else { return Ok(()) };
-	if instance.action.uuid == "opendeck.multiaction" {
+	// A folder opens on a press, whichever action its key shows.
+	if instance.action.uuid == crate::folders::FOLDER {
+		if let Some(folder) = crate::folders::folder_of(instance) {
+			crate::folders::open(device, &selected_profile, &folder)?;
+		}
+	} else if instance.action.uuid == crate::folders::BACK {
+		crate::folders::back(device, &selected_profile)?;
+	} else if instance.action.uuid == "opendeck.multiaction" {
 		let children = instance.children.clone().unwrap_or_default();
 		let delays: Vec<u64> = instance
 			.settings
@@ -170,7 +177,7 @@ pub async fn key_up(device: &str, key: u8) -> Result<(), anyhow::Error> {
 		)
 		.await?;
 		instance.current_state = ((index + 1) % instance.children.as_ref().unwrap().len()) as u16;
-	} else if instance.action.uuid != "opendeck.multiaction" {
+	} else if !matches!(instance.action.uuid.as_str(), "opendeck.multiaction" | crate::folders::FOLDER | crate::folders::BACK) {
 		if instance.states.len() == 2 && !instance.action.disable_automatic_states {
 			instance.current_state = (instance.current_state + 1) % (instance.states.len() as u16);
 		}

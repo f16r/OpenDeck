@@ -10,7 +10,7 @@
 	import Popup from "./Popup.svelte";
 
 	import { t } from "$lib/i18n";
-	import { inspectedInstance } from "$lib/propertyInspector";
+	import { FOLDER_PROFILE_PREFIX, inspectedInstance } from "$lib/propertyInspector";
 
 	import { invoke } from "@tauri-apps/api/core";
 	import { listen } from "@tauri-apps/api/event";
@@ -21,7 +21,8 @@
 	async function getProfiles(device: DeviceInfo) {
 		let profiles: string[] = await invoke("get_profiles", { device: device.id });
 		folders = {};
-		for (const id of profiles) {
+		// The profiles holding the keys of folder actions are opened through their keys, not listed.
+		for (const id of profiles.filter((id) => !id.startsWith(FOLDER_PROFILE_PREFIX))) {
 			let folder = id.includes("/") ? id.split("/")[0] : "";
 			if (folders[folder]) folders[folder].push(id);
 			else folders[folder] = [id];
@@ -44,14 +45,20 @@
 		await invoke("set_selected_profile", { device: device.id, id });
 		profile = await invoke("get_selected_profile", { device: device.id });
 
-		let folder = id.includes("/") ? id.split("/")[0] : "";
-		if (folders[folder]) {
-			if (!folders[folder].includes(id)) folders[folder].push(id);
-		} else folders[folder] = [id];
-		folders = folders;
+		if (!id.startsWith(FOLDER_PROFILE_PREFIX)) {
+			let folder = id.includes("/") ? id.split("/")[0] : "";
+			if (folders[folder]) {
+				if (!folders[folder].includes(id)) folders[folder].push(id);
+			} else folders[folder] = [id];
+			folders = folders;
+		}
 
 		$inspectedInstance = null;
 	}
+
+	/** Whether the selected profile holds the keys of a folder action. */
+	let inFolder: boolean;
+	$: inFolder = value?.startsWith(FOLDER_PROFILE_PREFIX) ?? false;
 
 	listen("rerender_images", async () => {
 		try {
@@ -184,7 +191,7 @@
 	let measure: HTMLSpanElement;
 	let selectWidth = 0;
 	$: if (value && measure) {
-		measure.textContent = value.includes("/") ? value.split("/")[1] : value;
+		measure.textContent = inFolder ? $t("parent_action_view.folder") : value.includes("/") ? value.split("/")[1] : value;
 		selectWidth = measure.offsetWidth + 18;
 	}
 </script>
@@ -192,6 +199,9 @@
 <div class="select-profile-wrapper">
 	<span bind:this={measure} class="invisible fixed whitespace-pre pointer-events-none" aria-hidden="true"></span>
 	<select bind:value style:width="{selectWidth}px" aria-label={$t("profile_manager.label")}>
+		{#if inFolder}
+			<option {value}>{$t("parent_action_view.folder")}</option>
+		{/if}
 		{#each Object.entries(folders).sort() as [id, profiles]}
 			{#if id && profiles.length}
 				<optgroup label={id}>

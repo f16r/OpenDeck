@@ -20,11 +20,22 @@ pub async fn create_instance(app: AppHandle, mut action: Action, context: Contex
 	let slot = get_slot_mut(&context, &mut locks).await?;
 
 	if let Some(parent) = slot {
+		let is_folder = parent.action.uuid == crate::folders::FOLDER;
+		if is_folder && (crate::folders::is_parent(&action.uuid) || action.uuid == crate::folders::BACK) {
+			return Ok(None);
+		}
 		let Some(children) = &mut parent.children else { return Ok(None) };
 		let index = match children.last() {
 			None => 1,
 			Some(instance) => instance.context.index + 1,
 		};
+		// A folder shows a single action on its key: a new one replaces it.
+		if is_folder {
+			for old in children.drain(..) {
+				let _ = crate::events::outbound::will_appear::will_disappear(&old, false).await;
+				let _ = remove_dir_all(instance_images_dir(&old.context)).await;
+			}
+		}
 
 		let instance = ActionInstance {
 			action: action.clone(),
@@ -52,17 +63,20 @@ pub async fn create_instance(app: AppHandle, mut action: Action, context: Contex
 		let slot = get_slot(&context, &locks).await?.clone();
 		Ok(slot)
 	} else {
+		let mut settings = serde_json::Map::new();
+		if action.uuid == crate::folders::FOLDER {
+			let device = crate::shared::DEVICES.get(&context.device).ok_or_else(|| anyhow::anyhow!("device not found"))?.clone();
+			let folder = crate::folders::create(&device, &mut locks.profile_stores).await?;
+			settings.insert("folder".to_owned(), serde_json::Value::String(folder));
+		}
+		let slot = get_slot_mut(&context, &mut locks).await?;
 		let instance = ActionInstance {
 			action: action.clone(),
 			context: ActionContext::from_context(context.clone(), 0),
 			states: action.states.clone(),
 			current_state: 0,
-			settings: serde_json::Value::Object(serde_json::Map::new()),
-			children: if matches!(action.uuid.as_str(), "opendeck.multiaction" | "opendeck.toggleaction") {
-				Some(vec![])
-			} else {
-				None
-			},
+			settings: serde_json::Value::Object(settings),
+			children: if crate::folders::is_parent(&action.uuid) { Some(vec![]) } else { None },
 		};
 
 		*slot = Some(instance.clone());
@@ -103,6 +117,13 @@ pub async fn move_instance(source: Context, destination: Context, retain: bool) 
 	let Some(mut new) = src.clone() else {
 		return Ok(None);
 	};
+	// A copy of a folder gets its own copy of the folder's keys, rather than sharing them.
+	if retain && let Some(folder) = crate::folders::folder_of(&new) {
+		let device = crate::shared::DEVICES.get(&destination.device).ok_or_else(|| anyhow::anyhow!("device not found"))?.clone();
+		let copy = crate::folders::duplicate(&device, &folder, &mut locks.profile_stores).await?;
+		new.settings["folder"] = serde_json::Value::String(copy);
+	}
+	let src = get_slot_mut(&source, &mut locks).await?;
 	new.context = ActionContext::from_context(destination.clone(), 0);
 	if let Some(children) = &mut new.children {
 		for (index, instance) in children.iter_mut().enumerate() {
@@ -167,6 +188,11 @@ pub async fn remove_instance(context: ActionContext) -> Result<(), Error> {
 	};
 
 	if instance.context == context {
+		if let Some(folder) = crate::folders::folder_of(instance) {
+			crate::folders::delete(&context.device, &folder, &mut locks.profile_stores);
+		}
+		let slot = get_slot_mut(&(&context).into(), &mut locks).await?;
+		let Some(instance) = slot else { return Ok(()) };
 		let _ = crate::events::outbound::will_appear::will_disappear(instance, true).await;
 		if let Some(children) = &instance.children {
 			for child in children {

@@ -494,6 +494,32 @@ pub static CATEGORIES: LazyLock<RwLock<HashMap<String, Category>>> = LazyLock::n
 					}
 				))
 				.unwrap(),
+				serde_json::from_value(serde_json::json!(
+					{
+						"name": "Folder",
+						"icon": "opendeck/folder.png",
+						"plugin": "opendeck",
+						"uuid": "opendeck.folder",
+						"tooltip": "Open a page of further actions; can show another action on its key",
+						"controllers": [ "Keypad" ],
+						"states": [ { "image": "opendeck/folder.png" } ],
+						"supported_in_multi_actions": false
+					}
+				))
+				.unwrap(),
+				serde_json::from_value(serde_json::json!(
+					{
+						"name": "Folder Back",
+						"icon": "opendeck/folder-back.png",
+						"plugin": "opendeck",
+						"uuid": "opendeck.folderback",
+						"tooltip": "Leave the folder, back to where it was opened",
+						"controllers": [ "Keypad" ],
+						"states": [ { "image": "opendeck/folder-back.png" } ],
+						"supported_in_multi_actions": false
+					}
+				))
+				.unwrap(),
 			],
 		},
 	);

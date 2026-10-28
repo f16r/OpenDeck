@@ -11,7 +11,7 @@
 	import InstanceEditor from "./InstanceEditor.svelte";
 
 	import { t } from "$lib/i18n";
-	import { copiedItem, inspectedInstance, inspectedParentAction, openContextMenu } from "$lib/propertyInspector";
+	import { copiedItem, inspectedInstance, inspectedParentAction, isParent, openContextMenu } from "$lib/propertyInspector";
 	import { CanvasLock, renderImage } from "$lib/rendererHelper";
 	import { settings } from "$lib/settings";
 
@@ -41,17 +41,25 @@
 	export let isTouchPoint: boolean = false;
 	let pressed: boolean = false;
 
+	// A folder's key shows the action it holds, if any, instead of its own image.
+	let shown: ActionInstance | null;
+	$: shown = slot?.action.uuid == "opendeck.folder" && slot.children?.[0] ? slot.children[0] : slot;
+
 	let state: ActionState | undefined;
 	$: {
-		if (!slot) {
+		if (!shown) {
 			state = undefined;
 		} else {
-			state = slot.states[slot.current_state];
+			state = shown.states[shown.current_state];
 		}
 	}
 
 	listen("update_state", ({ payload }: { payload: { context: string; contents: ActionInstance | null } }) => {
 		if (payload.context == slot?.context) slot = payload.contents;
+		else if (slot?.action.uuid == "opendeck.folder" && slot.children?.[0] && payload.context == slot.children[0].context && payload.contents) {
+			slot.children[0] = payload.contents;
+			slot = slot;
+		}
 	});
 
 	listen("key_moved", ({ payload }: { payload: { context: Context; pressed: boolean } }) => {
@@ -65,7 +73,7 @@
 			$inspectedInstance = context;
 			return;
 		}
-		if (slot.action.uuid == "opendeck.multiaction" || slot.action.uuid == "opendeck.toggleaction") {
+		if (isParent(slot.action.uuid)) {
 			$inspectedParentAction = context;
 		} else {
 			$inspectedInstance = slot.context;
@@ -78,7 +86,7 @@
 			$inspectedInstance = context;
 			return;
 		}
-		if (slot.action.uuid != "opendeck.multiaction" && slot.action.uuid != "opendeck.toggleaction") {
+		if (!isParent(slot.action.uuid)) {
 			$inspectedInstance = slot.context;
 		} else {
 			$inspectedInstance = context;
@@ -133,14 +141,14 @@
 	let showOk: boolean = false;
 	let timeouts: number[] = [];
 	listen("show_alert", ({ payload }: { payload: string }) => {
-		if (!slot || payload != slot.context) return;
+		if (!shown || (payload != slot?.context && payload != shown.context)) return;
 		timeouts.forEach(clearTimeout);
 		showOk = false;
 		showAlert = true;
 		timeouts.push(setTimeout(() => (showAlert = false), 1.5e3));
 	});
 	listen("show_ok", ({ payload }: { payload: string }) => {
-		if (!slot || payload != slot.context) return;
+		if (!shown || (payload != slot?.context && payload != shown.context)) return;
 		timeouts.forEach(clearTimeout);
 		showAlert = false;
 		showOk = true;
@@ -154,7 +162,7 @@
 	export let width: number = size;
 	export let height: number = size;
 	$: (async () => {
-		const sl = structuredClone(slot);
+		const sl = structuredClone(shown);
 		if (!sl) {
 			const unlock = await lock.lock();
 			try {
@@ -190,7 +198,7 @@
 	}
 
 	$: accessibleLabel =
-		label + (slot ? ": " + slot.action.name + (state?.show && (state?.text_override || state?.text) ? " - " + (state.text_override || state.text) : "") : "");
+		label + (shown ? ": " + shown.action.name + (state?.show && (state?.text_override || state?.text) ? " - " + (state.text_override || state.text) : "") : "");
 </script>
 
 <div class="relative" style={`transform: scale(${(112 /* desired inner size */ / size) * scale});`}>

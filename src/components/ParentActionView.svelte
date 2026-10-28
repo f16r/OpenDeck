@@ -7,7 +7,7 @@
 	import Key from "./Key.svelte";
 
 	import { t } from "$lib/i18n";
-	import { copiedItem, inspectedInstance, inspectedParentAction } from "$lib/propertyInspector";
+	import { copiedItem, inspectedInstance, inspectedParentAction, isParent } from "$lib/propertyInspector";
 
 	import { invoke } from "@tauri-apps/api/core";
 	import { onMount, tick } from "svelte";
@@ -28,6 +28,22 @@
 	$: parentContext = profile.keys[$inspectedParentAction!.position]!.context;
 	let parentSettings: any;
 	$: parentSettings = profile.keys[$inspectedParentAction!.position]!.settings;
+	let isFolder: boolean;
+	$: isFolder = parentUuid == "opendeck.folder";
+	let title: string;
+	$: title = isFolder
+		? $t("parent_action_view.folder")
+		: parentUuid == "opendeck.toggleaction"
+			? $t("parent_action_view.toggle")
+			: $t("parent_action_view.multi");
+
+	// Opens the folder on the device and here, as a press on its key does.
+	async function openFolder() {
+		const context = $inspectedParentAction;
+		$inspectedParentAction = null;
+		$inspectedInstance = null;
+		await invoke("trigger_virtual_press", { context });
+	}
 
 	function handleDragOver(event: DragEvent) {
 		event.preventDefault();
@@ -37,7 +53,8 @@
 	async function addAction(action: Action) {
 		if (
 			(parentUuid == "opendeck.multiaction" && !action.supported_in_multi_actions) ||
-			(parentUuid == "opendeck.toggleaction" && (action.uuid == "opendeck.multiaction" || action.uuid == "opendeck.toggleaction"))
+			(parentUuid == "opendeck.toggleaction" && isParent(action.uuid)) ||
+			(isFolder && (isParent(action.uuid) || action.uuid == "opendeck.folderback"))
 		) {
 			return;
 		}
@@ -128,7 +145,13 @@
 
 <div class="px-6 pt-6 pb-4 text-neutral-300">
 	<button class="float-right text-xl" on:click={() => ($inspectedParentAction = null)} aria-label={$t("settings.close")}>✕</button>
-	<h1 class="font-semibold text-2xl">{parentUuid == "opendeck.toggleaction" ? $t("parent_action_view.toggle") : $t("parent_action_view.multi")}</h1>
+	<h1 class="font-semibold text-2xl">{title}</h1>
+	{#if isFolder}
+		<p class="mt-2 text-sm text-neutral-400">{$t("parent_action_view.folder.description")}</p>
+		<button class="mt-3 px-3 py-1.5 text-sm text-neutral-300 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-lg" on:click={openFolder}>
+			{$t("parent_action_view.folder.open")}
+		</button>
+	{/if}
 </div>
 
 <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
@@ -137,7 +160,7 @@
 	class="flex flex-col h-128 overflow-auto"
 	on:click={() => ($inspectedInstance = null)}
 	role="list"
-	aria-label="{parentUuid == 'opendeck.toggleaction' ? $t('parent_action_view.toggle') : $t('parent_action_view.multi')} {$t('parent_action_view.children')}"
+	aria-label="{title} {$t('parent_action_view.children')}"
 	on:keydown={handleListKeydown}
 >
 	{#each children as instance, index}
@@ -160,11 +183,7 @@
 				scale={3 / 4}
 				role="presentation"
 				tabindex={-1}
-				label={(parentUuid == "opendeck.toggleaction" ? $t("parent_action_view.toggle") : $t("parent_action_view.multi")) +
-					" " +
-					$t("parent_action_view.child") +
-					" " +
-					(index + 1)}
+				label={title + " " + $t("parent_action_view.child") + " " + (index + 1)}
 			/>
 			<p class="ml-4 text-xl text-neutral-300">{instance.action.name}</p>
 			<button
@@ -209,7 +228,9 @@
 		aria-label={$t("parent_action_view.drag_copy")}
 	>
 		<img src="/cube.png" class="m-2 w-24 rounded-xl" alt="" />
-		<p class="ml-4 text-xl text-neutral-400">{$t("parent_action_view.drag_paste")}</p>
+		<p class="ml-4 text-xl text-neutral-400">
+			{isFolder ? $t(children.length ? "parent_action_view.folder.replace" : "parent_action_view.folder.drop") : $t("parent_action_view.drag_paste")}
+		</p>
 	</div>
 </div>
 

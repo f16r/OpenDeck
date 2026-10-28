@@ -47,7 +47,7 @@ pub async fn set_selected_profile(device: String, id: String) -> Result<(), Erro
 			.chain(&mut old_profile.sliders.iter().flatten())
 			.chain(&mut old_profile.infobars.iter().flatten())
 		{
-			if !matches!(instance.action.uuid.as_str(), "opendeck.multiaction" | "opendeck.toggleaction") {
+			if !crate::folders::is_parent(&instance.action.uuid) {
 				let _ = crate::events::outbound::will_appear::will_disappear(instance, false).await;
 			} else {
 				for child in instance.children.as_ref().unwrap() {
@@ -68,7 +68,7 @@ pub async fn set_selected_profile(device: String, id: String) -> Result<(), Erro
 		.chain(&mut new_profile.sliders.iter().flatten())
 		.chain(&mut new_profile.infobars.iter().flatten())
 	{
-		if !matches!(instance.action.uuid.as_str(), "opendeck.multiaction" | "opendeck.toggleaction") {
+		if !crate::folders::is_parent(&instance.action.uuid) {
 			let _ = crate::events::outbound::will_appear::will_appear(instance).await;
 		} else {
 			for child in instance.children.as_ref().unwrap() {
@@ -86,6 +86,8 @@ pub async fn set_selected_profile(device: String, id: String) -> Result<(), Erro
 #[command]
 pub async fn delete_profile(device: String, profile: String) {
 	let mut profile_stores = PROFILE_STORES.write().await;
+	// The keys of folders in the profile go with it.
+	crate::folders::delete_folders_in(&device, &profile, &mut profile_stores);
 	profile_stores.delete_profile(&device, &profile);
 }
 
@@ -96,7 +98,12 @@ pub async fn rename_profile(device: String, old_id: String, new_id: String, reta
 		return Err(Error::new(format!("device {device} not found")));
 	}
 
-	locks.profile_stores.rename_profile(&DEVICES.get(&device).unwrap(), &old_id, &new_id, retain).await?;
+	let device = DEVICES.get(&device).unwrap().clone();
+	locks.profile_stores.rename_profile(&device, &old_id, &new_id, retain).await?;
+	// A duplicated profile gets its own copies of its folders.
+	if retain {
+		crate::folders::copy_folders_in(&device, &new_id, &mut locks.profile_stores).await?;
+	}
 
 	Ok(())
 }

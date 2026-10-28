@@ -26,3 +26,11 @@ globalThis.addEventListener("blur", () => openContextMenu.set(null));
 
 export type CopiedItem = { type: "instance"; source: Context } | { type: "action"; action: Action };
 export const copiedItem: Writable<CopiedItem | null> = writable(null);
+
+/** Whether instances of the action hold child instances, which are edited in the parent action view. */
+export function isParent(uuid: string): boolean {
+	return uuid == "opendeck.multiaction" || uuid == "opendeck.toggleaction" || uuid == "opendeck.folder";
+}
+
+/** Profiles holding the keys of folders, which the profile list hides. */
+export const FOLDER_PROFILE_PREFIX = "_folders/";

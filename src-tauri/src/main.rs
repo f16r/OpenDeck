@@ -6,6 +6,7 @@ mod device_sleep;
 mod elgato;
 mod encoder_layouts;
 mod events;
+mod folders;
 mod plugins;
 mod power_events;
 mod shared;
