@@ -9,6 +9,7 @@
 
 	import { t } from "$lib/i18n";
 	import { inspectedInstance, inspectedParentAction } from "$lib/propertyInspector";
+	import { settings } from "$lib/settings";
 
 	import { invoke } from "@tauri-apps/api/core";
 
@@ -75,21 +76,41 @@
 		}
 	}
 
-	$: overflowsX = Math.max(device.columns, device.encoders, device.touchpoints) > 8;
-	$: overflowsY = device.rows + Math.min(device.encoders, 1) + Math.min(device.touchpoints, 1) > 4;
+	// The keypad is shown as it physically appears on a device mounted rotated (Settings → Rotation), so that every key
+	// is shown where it is on the device: rotating the images by 90° or 270° turns the keypad the other way.
+	$: rotation = ((($settings?.rotation ?? 0) % 360) + 360) % 360;
+	$: rows = rotation == 90 || rotation == 270 ? device.columns : device.rows;
+	$: columns = rotation == 90 || rotation == 270 ? device.rows : device.columns;
+
+	/** The position of the key shown in row `r` and column `c` of the keypad. */
+	function positionAt(r: number, c: number, rotation: number): number {
+		switch (rotation) {
+			case 90:
+				return c * device.columns + (device.columns - 1 - r);
+			case 180:
+				return (device.rows - 1 - r) * device.columns + (device.columns - 1 - c);
+			case 270:
+				return (device.rows - 1 - c) * device.columns + r;
+			default:
+				return r * device.columns + c;
+		}
+	}
+
+	$: overflowsX = Math.max(columns, device.encoders, device.touchpoints) > 8;
+	$: overflowsY = rows + Math.min(device.encoders, 1) + Math.min(device.touchpoints, 1) > 4;
 
 	// Grid navigation: track focused cell and compute row lengths for arrow key movement.
 	let focusedRow = 0;
 	let focusedCol = 0;
 
 	$: gridRowLengths = [
-		...Array(device.rows).fill(device.columns),
+		...Array(rows).fill(columns),
 		...(device.encoders > 0 ? [device.encoders] : []),
 		...(device.touchpoints > 0 || device.infobars > 0 ? [device.touchpoints + device.infobars] : []),
 	];
-	$: encoderRowIndex = device.rows;
-	$: touchpointRowIndex = device.rows + (device.encoders > 0 ? 1 : 0);
-	$: keypadRowWidth = device.columns * 132;
+	$: encoderRowIndex = rows;
+	$: touchpointRowIndex = rows + (device.encoders > 0 ? 1 : 0);
+	$: keypadRowWidth = columns * 132;
 
 	function flatIndexFromRowCol(row: number, col: number): number {
 		let index = 0;
@@ -163,7 +184,7 @@
 	<span id="grid-description" class="sr-only">{$t("device_view.grid_description")}</span>
 	<div
 		class="flex flex-col justify-center grow px-16 py-6 overflow-auto"
-		class:items-center={device.columns <= 9}
+		class:items-center={columns <= 9}
 		class:hidden={$inspectedParentAction || selectedDevice != device.id}
 		class:device-fade-x={overflowsX && !overflowsY}
 		class:device-fade-y={overflowsY && !overflowsX}
@@ -177,25 +198,28 @@
 		on:keydown|capture={handleGridKeydown}
 		on:focusin={handleGridFocusin}
 	>
-		<div class="flex flex-col" role="rowgroup">
-			{#each { length: device.rows } as _, r}
-				<div class="flex flex-row" role="row">
-					{#each { length: device.columns } as _, c}
-						<Key
-							context={{ device: device.id, profile: profile.id, controller: "Keypad", position: r * device.columns + c }}
-							bind:inslot={profile.keys[r * device.columns + c]}
-							on:dragover={handleDragOver}
-							on:drop={(event) => handleDrop(event, "Keypad", r * device.columns + c)}
-							on:dragstart={(event) => handleDragStart(event, "Keypad", r * device.columns + c)}
-							{handlePaste}
-							size={device.id.startsWith("sd-") && device.rows == 4 && device.columns == 8 ? 192 : 144}
-							label="{$t('device_view.key')} {String.fromCharCode(65 + r)}{c + 1}"
-							tabindex={focusedRow === r && focusedCol === c ? 0 : -1}
-						/>
-					{/each}
-				</div>
-			{/each}
-		</div>
+		{#key rotation}
+			<div class="flex flex-col" role="rowgroup">
+				{#each { length: rows } as _, r}
+					<div class="flex flex-row" role="row">
+						{#each { length: columns } as _, c}
+							{@const position = positionAt(r, c, rotation)}
+							<Key
+								context={{ device: device.id, profile: profile.id, controller: "Keypad", position }}
+								bind:inslot={profile.keys[position]}
+								on:dragover={handleDragOver}
+								on:drop={(event) => handleDrop(event, "Keypad", position)}
+								on:dragstart={(event) => handleDragStart(event, "Keypad", position)}
+								{handlePaste}
+								size={device.id.startsWith("sd-") && device.rows == 4 && device.columns == 8 ? 192 : 144}
+								label="{$t('device_view.key')} {String.fromCharCode(65 + r)}{c + 1}"
+								tabindex={focusedRow === r && focusedCol === c ? 0 : -1}
+							/>
+						{/each}
+					</div>
+				{/each}
+			</div>
+		{/key}
 
 		<div class="flex flex-row justify-between" role="row" style={`width: ${keypadRowWidth}px;`}>
 			{#each { length: device.encoders } as _, i}

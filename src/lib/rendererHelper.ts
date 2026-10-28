@@ -67,11 +67,6 @@ export async function renderImage(
 	if (!context) return;
 
 	context.save();
-	if (rotation) {
-		context.translate(canvas.width / 2, canvas.height / 2);
-		context.rotate((rotation * Math.PI) / 180);
-		context.translate(-canvas.width / 2, -canvas.height / 2);
-	}
 
 	try {
 		// Load image
@@ -165,7 +160,6 @@ export async function renderImage(
 
 	context.restore();
 
-	// Apply the press effect to the already rotated image, so that it is not rotated a second time.
 	if (pressed && pressEffect == "shrink") {
 		const smallCanvas = document.createElement("canvas");
 		smallCanvas.width = canvas.width;
@@ -185,7 +179,25 @@ export async function renderImage(
 		context.restore();
 	}
 
-	if (active && slotContext) setTimeout(async () => await invoke("update_image", { context: slotContext, image: canvas.toDataURL("image/jpeg") }), 10);
+	if (active && slotContext) {
+		// The rotation only applies to the image on the device, which is mounted rotated; the canvas shown in the UI stays upright.
+		const image = rotate(canvas, rotation).toDataURL("image/jpeg");
+		setTimeout(async () => await invoke("update_image", { context: slotContext, image }), 10);
+	}
+}
+
+function rotate(canvas: HTMLCanvasElement, rotation?: number): HTMLCanvasElement {
+	if (!rotation) return canvas;
+	const rotated = document.createElement("canvas");
+	rotated.width = canvas.width;
+	rotated.height = canvas.height;
+	const context = rotated.getContext("2d");
+	if (!context) return canvas;
+	context.translate(rotated.width / 2, rotated.height / 2);
+	context.rotate((rotation * Math.PI) / 180);
+	context.translate(-rotated.width / 2, -rotated.height / 2);
+	context.drawImage(canvas, 0, 0);
+	return rotated;
 }
 
 export async function resizeImage(source: string): Promise<string | undefined> {
