@@ -50,6 +50,7 @@ export async function renderImage(
 	active: boolean,
 	pressed: boolean,
 	rotation?: number,
+	pressEffect: "shrink" | "dim" | "none" = "shrink",
 ) {
 	// Create canvas
 	let scale = 1;
@@ -162,8 +163,10 @@ export async function renderImage(
 		context.drawImage(alertImage, 0, 0, canvas.width, canvas.height);
 	}
 
-	// Make the image smaller while the button is pressed.
-	if (pressed) {
+	context.restore();
+
+	// Apply the press effect to the already rotated image, so that it is not rotated a second time.
+	if (pressed && pressEffect == "shrink") {
 		const smallCanvas = document.createElement("canvas");
 		smallCanvas.width = canvas.width;
 		smallCanvas.height = canvas.height;
@@ -174,9 +177,13 @@ export async function renderImage(
 			context.clearRect(0, 0, canvas.width, canvas.height);
 			context.drawImage(smallCanvas, 0, 0);
 		}
+	} else if (pressed && pressEffect == "dim") {
+		context.save();
+		context.globalCompositeOperation = "source-atop";
+		context.fillStyle = "rgba(0, 0, 0, 0.35)";
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		context.restore();
 	}
-
-	context.restore();
 
 	if (active && slotContext) setTimeout(async () => await invoke("update_image", { context: slotContext, image: canvas.toDataURL("image/jpeg") }), 10);
 }

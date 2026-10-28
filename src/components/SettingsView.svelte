@@ -121,6 +121,15 @@
 		</div>
 
 		<div class="flex flex-row items-center m-2 space-x-2">
+			<label for="settings-press_effect" class="text-neutral-400">{$t("settings.press_effect")}</label>
+			<select bind:value={$settings.press_effect} class="w-auto pr-10!" id="settings-press_effect">
+				<option value="shrink">{$t("settings.press_effect.shrink")}</option>
+				<option value="dim">{$t("settings.press_effect.dim")}</option>
+				<option value="none">{$t("settings.press_effect.none")}</option>
+			</select>
+		</div>
+
+		<div class="flex flex-row items-center m-2 space-x-2">
 			<label for="settings-background" class="text-neutral-400">{$t("settings.background")}</label>
 			<input type="checkbox" bind:checked={$settings.background} id="settings-background" />
 			<Tooltip>{$t("settings.background.tooltip", { PRODUCT_NAME })}</Tooltip>

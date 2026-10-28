@@ -168,7 +168,8 @@
 			const unlock = await lock.lock();
 			try {
 				let fallback = sl.action.states[sl.current_state]?.image ?? sl.action.icon;
-				if (state && canvas) await renderImage(canvas, context, state, fallback, showOk, showAlert, true, active, pressed, $settings?.rotation);
+				if (state && canvas)
+					await renderImage(canvas, context, state, fallback, showOk, showAlert, true, active, pressed, $settings?.rotation, $settings?.press_effect);
 			} finally {
 				unlock();
 			}

@@ -5,6 +5,7 @@ export type Settings = {
 	sleep_timeout_minutes: number;
 	sleep_when_computer_locked: boolean;
 	rotation: number;
+	press_effect: "shrink" | "dim" | "none";
 	background: boolean;
 	autolaunch: boolean;
 	updatecheck: boolean;
