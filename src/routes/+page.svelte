@@ -3,7 +3,7 @@
 	import type { Profile } from "$lib/Profile";
 
 	import { initPortBase } from "$lib/ports";
-	import { inspectedParentAction } from "$lib/propertyInspector";
+	import { inspectedParentAction, isParent } from "$lib/propertyInspector";
 	import { actionList, deviceSelector, profileManager } from "$lib/singletons";
 
 	import ActionList from "../components/ActionList.svelte";
@@ -21,6 +21,16 @@
 	let selectedProfiles: { [id: string]: Profile } = {};
 
 	initPortBase();
+
+	// Switching the profile (e.g. by pressing a folder's key on the device) can leave the inspected multi action, toggle
+	// action or folder behind in a profile that is no longer shown: close its view rather than show a missing key.
+	let parentShown: boolean;
+	$: {
+		const profile = selectedProfiles[selectedDevice];
+		const parent = $inspectedParentAction && profile?.id == $inspectedParentAction.profile ? profile.keys[$inspectedParentAction.position] : null;
+		parentShown = !!parent && isParent(parent.action.uuid);
+		if ($inspectedParentAction && !parentShown) $inspectedParentAction = null;
+	}
 </script>
 
 <svelte:window on:dragover={(event) => event.preventDefault()} on:drop={(event) => event.preventDefault()} />
@@ -44,7 +54,7 @@
 		</nav>
 
 		{#if Object.keys(devices).length > 0 && selectedProfiles}
-			{#if $inspectedParentAction}
+			{#if $inspectedParentAction && parentShown}
 				<ParentActionView bind:profile={selectedProfiles[selectedDevice]} />
 			{/if}
 
